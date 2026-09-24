@@ -17,6 +17,11 @@ export function pyStrip(value: string) {
   return value.replace(PY_TRIM_START, '').replace(PY_TRIM_END, '')
 }
 
+/** Match Python's " ".join(value.split()) for contract term normalization. */
+export function pyCollapse(value: string) {
+  return value.split(new RegExp('[' + PY_SPACE + ']+')).filter(Boolean).join(' ')
+}
+
 export function pyLen(value: string) {
   return codePointLength(value)
 }
@@ -35,7 +40,7 @@ export function pactIdFor(creator: string, name: string) {
 }
 
 export function termIdFor(pactId: string, text: string) {
-  const clean = pyStrip(text)
+  const clean = pyCollapse(text)
   const payload =
     'RECIPROCITY_LOCK:TERM:V1|' +
     pactId.toLowerCase() +

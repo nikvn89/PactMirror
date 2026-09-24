@@ -1,6 +1,6 @@
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
 
-const fallbackAddress = '0x1613A25aE378b3e1e82e4840733BDED53b19f1a8'
+const fallbackAddress = '0xCd04E73447ab2210B5BbACa38b5F0F6717887275'
 
 const envAddress = String(import.meta.env.VITE_CONTRACT_ADDRESS || '').trim()
 

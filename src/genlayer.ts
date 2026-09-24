@@ -3,6 +3,7 @@ import { studionet } from 'genlayer-js/chains'
 import { getAddress } from 'viem'
 import { CONTRACT_ADDRESS, STUDIO_CHAIN_ID, STUDIO_RPC } from './config'
 import { normalizeError } from './errors'
+import { pyCollapse } from './ids'
 
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] | object }) => Promise<any>
@@ -21,6 +22,7 @@ export type PactState = {
   creator: string
   party_a: string
   party_b: string
+  accepted: boolean
   name: string
   role_a_label: string
   role_b_label: string
@@ -29,7 +31,7 @@ export type PactState = {
   exited: boolean
   exited_by: string
   attempt_count: number
-  state: 'DRAFT' | 'ACTIVE' | 'EXITED'
+  state: 'PENDING' | 'DRAFT' | 'ACTIVE' | 'EXITED'
 }
 
 export type AttemptSummary = {
@@ -78,11 +80,10 @@ const getWriteClient = (account: string) =>
     provider: window.ethereum as any,
   } as any)
 
-// B1 replacement for client.connect('studionet').
-// connect() calls wallet_getSnaps + wallet_requestSnaps, which asks the
-// reviewer to install the GenLayer MetaMask Snap before every write. This does
-// the same job with plain EIP-3085/3326 and no Snap. The chain is registered
-// with the CANONICAL StudioNet RPC URL, never the local proxy origin.
+// Not client.connect(): it also calls wallet_getSnaps and, when the GenLayer
+// Snap is missing, wallet_requestSnaps. That throws -32601 on wallets without
+// Snap support and 4001 if the user declines, so the write never reaches
+// MetaMask. This uses plain EIP-3085/3326 instead.
 const STUDIO_CHAIN_HEX = `0x${STUDIO_CHAIN_ID.toString(16)}`
 
 async function ensureStudioNet() {
@@ -158,7 +159,8 @@ function validatePact(value: any): PactState {
     !isId(value.pact_id) ||
     !isHexAddress(value.creator) ||
     !isHexAddress(value.party_b) ||
-    !['DRAFT', 'ACTIVE', 'EXITED'].includes(value.state) ||
+    !['PENDING', 'DRAFT', 'ACTIVE', 'EXITED'].includes(value.state) ||
+    typeof value.accepted !== 'boolean' ||
     typeof value.name !== 'string' ||
     typeof value.role_a_label !== 'string' ||
     typeof value.role_b_label !== 'string' ||
@@ -242,6 +244,30 @@ async function submit(
   return String(hash)
 }
 
+/**
+ * Call only after accepted-state auto-refresh has timed out. Accepted state is
+ * the primary confirmation mechanism; this single leader-receipt read merely
+ * distinguishes a real rollback from a transaction that is still converging.
+ */
+export async function leaderRollbackReason(hash: string): Promise<string | undefined> {
+  try {
+    const tx: any = await (getReadClient() as any).getTransaction({ hash })
+    const consensus = tx?.consensus_data ?? tx?.consensusData
+    let leader = consensus?.leader_receipt ?? consensus?.leaderReceipt
+    if (Array.isArray(leader)) {
+      leader = leader.find((r: any) => String(r?.mode ?? '').toUpperCase() === 'LEADER') ?? leader[0]
+    }
+    const result = String(leader?.execution_result ?? leader?.executionResult ?? '').toUpperCase()
+    if (result !== 'ERROR' && result !== 'FINISHED_WITH_ERROR') return undefined
+    for (const field of [leader?.error, leader?.message, leader?.return_data, leader?.returnData]) {
+      if (typeof field === 'string' && field.trim()) return field.trim()
+    }
+    return 'Contract execution rolled back.'
+  } catch {
+    return undefined
+  }
+}
+
 export async function connectWallet() {
   if (!window.ethereum) {
     throw new Error('No browser wallet detected. Install MetaMask or a compatible wallet.')
@@ -286,7 +312,10 @@ export const reciprocityLock = {
     ]),
 
   submitTerm: (account: string, pactId: string, text: string) =>
-    submit(account, 'submit_term', [pactId.trim().toLowerCase(), text.trim()]),
+    submit(account, 'submit_term', [pactId.trim().toLowerCase(), pyCollapse(text)]),
+
+  acceptPact: (account: string, pactId: string) =>
+    submit(account, 'accept_pact', [pactId.trim().toLowerCase()]),
 
   exerciseRight: (account: string, pactId: string) =>
     submit(account, 'exercise_right', [pactId.trim().toLowerCase()]),

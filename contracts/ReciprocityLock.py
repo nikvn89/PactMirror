@@ -69,6 +69,7 @@ or
 class PactRecord:
     creator: Address
     party_b: Address
+    accepted: bool
     name: str
     role_a_label: str
     role_b_label: str
@@ -100,6 +101,7 @@ class ReciprocityLock(gl.Contract):
         RIGHT_NOT_MIRRORED
 
     Deterministic consequence:
+        party_b accepts    -> pact moves from PENDING to DRAFT
         RIGHT_NOT_MIRRORED -> pact remains DRAFT
         RIGHT_MIRRORED     -> active_term_id is installed; pact becomes ACTIVE
         party_a or party_b -> exercise_right() once; pact becomes EXITED forever
@@ -180,7 +182,9 @@ class ReciprocityLock(gl.Contract):
         return cleaned
 
     def _clean_term(self, value: str) -> str:
-        cleaned = value.strip()
+        # Collapse all Python whitespace runs so presentation-only variants
+        # resolve to the same term_id and cannot consume extra attempts.
+        cleaned = " ".join(value.split())
 
         if len(cleaned) == 0:
             raise gl.vm.UserError("Term text cannot be empty")
@@ -266,6 +270,9 @@ class ReciprocityLock(gl.Contract):
         if pact.active_term_id != "":
             return "ACTIVE"
 
+        if not pact.accepted:
+            return "PENDING"
+
         return "DRAFT"
 
     # ============================================================
@@ -308,6 +315,9 @@ SUBMITTED TERM
 """.strip()
 
         def evaluate_once():
+            # Invalid model output aborts the transaction. It must not be
+            # converted into a fabricated semantic verdict, consume an
+            # attempt, or make an exact term impossible to retry.
             raw = gl.nondet.exec_prompt(
                 prompt,
                 response_format="json",
@@ -327,19 +337,22 @@ SUBMITTED TERM
                 try:
                     data = json.loads(text)
                 except Exception:
-                    data = None
+                    raise gl.vm.UserError("Invalid semantic output")
 
             if not isinstance(data, dict):
-                return {"verdict": RIGHT_NOT_MIRRORED}
+                raise gl.vm.UserError("Invalid semantic output")
 
             verdict = str(
                 data.get("verdict", "")
             ).strip().upper()
 
-            if verdict == RIGHT_MIRRORED:
-                return {"verdict": RIGHT_MIRRORED}
+            if verdict not in (
+                RIGHT_MIRRORED,
+                RIGHT_NOT_MIRRORED,
+            ):
+                raise gl.vm.UserError("Invalid semantic output")
 
-            return {"verdict": RIGHT_NOT_MIRRORED}
+            return {"verdict": verdict}
 
         def validator_fn(leader_result) -> bool:
             if not isinstance(leader_result, gl.vm.Return):
@@ -462,6 +475,7 @@ SUBMITTED TERM
         self.pacts[pact_id] = PactRecord(
             creator=creator,
             party_b=party_b_address,
+            accepted=False,
             name=clean_name,
             role_a_label=clean_role_a,
             role_b_label=clean_role_b,
@@ -473,7 +487,28 @@ SUBMITTED TERM
         )
 
     # ============================================================
-    # WRITE 2 — SUBMIT TERM
+    # WRITE 2 — PARTY B ACCEPTS PACT
+    # ============================================================
+
+    @gl.public.write
+    def accept_pact(self, pact_id_hex: str) -> None:
+        pact_id = self._require_pact(pact_id_hex)
+        pact = self.pacts[pact_id]
+
+        if gl.message.sender_address != pact.party_b:
+            raise gl.vm.UserError("Only Party B may accept the pact")
+
+        if pact.exited:
+            raise gl.vm.UserError("Pact has already exited")
+
+        if pact.accepted:
+            raise gl.vm.UserError("Pact has already been accepted")
+
+        pact.accepted = True
+        self.pacts[pact_id] = pact
+
+    # ============================================================
+    # WRITE 3 — SUBMIT TERM
     # ============================================================
 
     @gl.public.write
@@ -489,6 +524,9 @@ SUBMITTED TERM
             raise gl.vm.UserError(
                 "Only pact creator may submit terms"
             )
+
+        if not pact.accepted:
+            raise gl.vm.UserError("Party B must accept the pact first")
 
         if pact.exited:
             raise gl.vm.UserError("Pact has already exited")
@@ -542,7 +580,7 @@ SUBMITTED TERM
         self.pacts[pact_id] = pact
 
     # ============================================================
-    # WRITE 3 — EXERCISE SHARED RIGHT
+    # WRITE 4 — EXERCISE SHARED RIGHT
     # ============================================================
 
     @gl.public.write
@@ -583,6 +621,7 @@ SUBMITTED TERM
             "creator": str(pact.creator),
             "party_a": str(pact.creator),
             "party_b": str(pact.party_b),
+            "accepted": pact.accepted,
             "name": pact.name,
             "role_a_label": pact.role_a_label,
             "role_b_label": pact.role_b_label,
@@ -666,12 +705,13 @@ SUBMITTED TERM
         return {
             "project_name": "PactMirror",
             "contract_name": "ReciprocityLock",
-            "version": "1.0",
+            "version": "1.1",
             "semantic_verdicts": [
                 RIGHT_MIRRORED,
                 RIGHT_NOT_MIRRORED,
             ],
             "state_labels": [
+                "PENDING",
                 "DRAFT",
                 "ACTIVE",
                 "EXITED",

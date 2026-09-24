@@ -208,6 +208,7 @@ button.primary, button.secondary, .danger-action {
 .state-badge, .verdict-badge {
   display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 8px; font-size: 9px; font-weight: 900; letter-spacing: .05em;
 }
+.state-badge.pending { background: #fff4d6; color: #8b651d; }
 .state-badge.draft { background: #edf2f1; color: #63777a; }
 .state-badge.active { background: #def6ed; color: #14775c; }
 .state-badge.exited { background: #fff0ea; color: #a34c30; }
@@ -222,6 +223,21 @@ button.primary, button.secondary, .danger-action {
 }
 .right-card span { color: #668084; font-size: 9px; font-weight: 900; letter-spacing: .1em; }
 .right-card strong { font-size: 14px; }
+
+.acceptance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #ead49a;
+  border-radius: 14px;
+  background: #fff9e9;
+}
+.acceptance-card > div { display: grid; gap: 4px; }
+.acceptance-card span { color: #8b651d; font-size: 9px; font-weight: 900; letter-spacing: .08em; }
+.acceptance-card strong { font-size: 13px; }
 
 .roles-card {
   display: grid; grid-template-columns: 1fr 120px 1fr; align-items: stretch; gap: 10px; margin-bottom: 12px;

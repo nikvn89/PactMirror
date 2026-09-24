@@ -6,14 +6,15 @@ import {
   PactState,
   TermState,
   connectWallet,
+  leaderRollbackReason,
   normalizeError,
   passiveWallet,
   reciprocityLock,
 } from './genlayer'
-import { isContractId, pactIdFor, pyLen, pyStrip } from './ids'
+import { isContractId, pactIdFor, pyCollapse, pyLen, pyStrip } from './ids'
 
 type Tab = 'pact' | 'terms'
-type PendingAction = '' | 'create' | 'submit' | 'exercise'
+type PendingAction = '' | 'create' | 'accept' | 'submit' | 'exercise'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
@@ -35,6 +36,7 @@ const sameAddress = (a?: string, b?: string) =>
   !!a && !!b && a.toLowerCase() === b.toLowerCase()
 
 function stateHint(state?: PactState['state']) {
+  if (state === 'PENDING') return 'Party B must accept this pact before semantic terms can be submitted.'
   if (state === 'ACTIVE') return 'The declared right is mirrored and armed for either party.'
   if (state === 'EXITED') return 'The one-shot shared right has already been exercised.'
   return 'No mirrored term is active yet. The shared right remains locked.'
@@ -76,6 +78,7 @@ export default function App() {
 
   const isCreator = sameAddress(account, pact?.creator)
   const isPartyB = sameAddress(account, pact?.party_b)
+  const canAccept = !!pact && isPartyB && pact.state === 'PENDING'
   const canExercise = !!pact && (isCreator || isPartyB) && pact.state === 'ACTIVE'
   const canSubmit = !!pact && isCreator && pact.state === 'DRAFT' && pact.attempt_count < 5
 
@@ -173,8 +176,10 @@ export default function App() {
       id: string,
       target:
         | { kind: 'create' }
+        | { kind: 'accept' }
         | { kind: 'submit'; baselineAttemptCount: number }
         | { kind: 'exercise' },
+      hash: string,
     ) => {
       const clean = id.trim().toLowerCase()
       setAutoSyncing(true)
@@ -191,6 +196,8 @@ export default function App() {
             const reachedTarget =
               target.kind === 'create'
                 ? true
+                : target.kind === 'accept'
+                  ? next.accepted
                 : target.kind === 'submit'
                   ? next.attempt_count > target.baselineAttemptCount
                   : next.state === 'EXITED'
@@ -207,7 +214,9 @@ export default function App() {
 
             setNotice(
               target.kind === 'create'
-                ? 'Accepted state updated automatically: pact created.'
+                ? 'Accepted state updated automatically: pact created and awaiting Party B.'
+                : target.kind === 'accept'
+                  ? 'Accepted state updated automatically: Party B accepted the pact.'
                 : target.kind === 'submit'
                   ? 'Accepted state updated automatically: semantic result loaded.'
                   : 'Accepted state updated automatically: pact exited.',
@@ -220,9 +229,15 @@ export default function App() {
           }
         }
 
-        setNotice(
-          'Transaction is still submitted, but automatic accepted-state refresh timed out. Use Refresh state later. Do not resubmit an action that already returned a transaction hash.',
-        )
+        const rollback = await leaderRollbackReason(hash)
+        if (rollback) {
+          setError(normalizeError(rollback))
+          setNotice('')
+        } else {
+          setNotice(
+            'Transaction is still submitted, but automatic accepted-state refresh timed out. Use Refresh state later. Do not resubmit an action that already returned a transaction hash.',
+          )
+        }
       } finally {
         setAutoSyncing(false)
       }
@@ -337,7 +352,30 @@ export default function App() {
       setNotice(
         `Transaction submitted: ${short(hash, 10, 8)}. Pact ID is computed locally. Waiting for accepted state automatically; do not submit create_pact again.`,
       )
-      void autoRefreshAcceptedState(computedId, { kind: 'create' })
+      void autoRefreshAcceptedState(computedId, { kind: 'create' }, hash)
+    } catch (err) {
+      setError(normalizeError(err))
+    } finally {
+      setPendingAction('')
+    }
+  }
+
+  const acceptPact = async () => {
+    clearMessages()
+
+    if (!account || !pact || !canAccept) {
+      setError('Connect the declared Party B wallet to accept this pact.')
+      return
+    }
+
+    setPendingAction('accept')
+    try {
+      const hash = await reciprocityLock.acceptPact(account, pact.pact_id)
+      setLastHash(hash)
+      setNotice(
+        `Acceptance submitted: ${short(hash, 10, 8)}. Waiting for accepted DRAFT state automatically.`,
+      )
+      void autoRefreshAcceptedState(pact.pact_id, { kind: 'accept' }, hash)
     } catch (err) {
       setError(normalizeError(err))
     } finally {
@@ -364,7 +402,7 @@ export default function App() {
       return
     }
 
-    const clean = pyStrip(termText)
+    const clean = pyCollapse(termText)
     if (!clean || pyLen(clean) > 1200) {
       setError('Term must contain 1–1200 characters.')
       return
@@ -380,7 +418,7 @@ export default function App() {
       void autoRefreshAcceptedState(pact.pact_id, {
         kind: 'submit',
         baselineAttemptCount: pact.attempt_count,
-      })
+      }, hash)
     } catch (err) {
       setError(normalizeError(err))
     } finally {
@@ -413,7 +451,7 @@ export default function App() {
       setNotice(
         `Exercise submitted: ${short(hash, 10, 8)}. Waiting for accepted EXITED state automatically. The UI will only show EXITED after the contract reports it.`,
       )
-      void autoRefreshAcceptedState(pact.pact_id, { kind: 'exercise' })
+      void autoRefreshAcceptedState(pact.pact_id, { kind: 'exercise' }, hash)
     } catch (err) {
       setError(normalizeError(err))
     } finally {
@@ -646,7 +684,7 @@ export default function App() {
                     </article>
                     <div className="bridge">
                       <span>⇄</span>
-                      <b>{pact.state === 'DRAFT' ? 'LOCKED' : pact.state === 'ACTIVE' ? 'MIRRORED' : 'EXERCISED'}</b>
+                      <b>{pact.state === 'PENDING' ? 'AWAITING B' : pact.state === 'DRAFT' ? 'LOCKED' : pact.state === 'ACTIVE' ? 'MIRRORED' : 'EXERCISED'}</b>
                     </div>
                     <article>
                       <span>PARTY B · {pact.role_b_label}</span>
@@ -655,6 +693,22 @@ export default function App() {
                     </article>
                   </div>
 
+                  {pact.state === 'PENDING' && (
+                    <div className="acceptance-card">
+                      <div>
+                        <span>PARTY B CONSENT</span>
+                        <strong>{isPartyB ? 'This wallet can accept' : 'Awaiting the declared Party B wallet'}</strong>
+                      </div>
+                      <button
+                        className="secondary"
+                        disabled={!canAccept || !!pendingAction || autoSyncing}
+                        onClick={acceptPact}
+                      >
+                        {pendingAction === 'accept' ? 'Submitting…' : autoSyncing ? 'Waiting for accepted state…' : 'Accept pact'}
+                      </button>
+                    </div>
+                  )}
+
                   <div className="action-grid">
                     <form className="term-card" onSubmit={submitTerm}>
                       <div className="card-title">
@@ -662,7 +716,7 @@ export default function App() {
                           <span className="section-index">04</span>
                           <h3>Submit a term</h3>
                         </div>
-                        <span className="subtle">{pyLen(pyStrip(termText))}/1200</span>
+                        <span className="subtle">{pyLen(pyCollapse(termText))}/1200</span>
                       </div>
                       <textarea
                         value={termText}
@@ -677,7 +731,7 @@ export default function App() {
                       >
                         {pendingAction === 'submit' ? 'Submitting…' : autoSyncing ? 'Waiting for accepted state…' : canSubmit ? 'Submit for GenLayer consensus' : 'Term submission locked'}
                       </button>
-                      {pyLen(pyStrip(termText)) > LONG_CALLDATA_CHARS && (
+                      {pyLen(pyCollapse(termText)) > LONG_CALLDATA_CHARS && (
                         <p className="microcopy warn-microcopy">
                           Transport note: above ~{LONG_CALLDATA_CHARS} characters the serialized
                           payload passes 255 bytes, which has not yet been confirmed with a signed
@@ -767,7 +821,7 @@ export default function App() {
             ) : !attempts.length ? (
               <div className="empty-state large">
                 <h3>No accepted term attempts yet</h3>
-                <p>The pact is still DRAFT with attempt_count = 0.</p>
+                <p>The pact has no accepted term attempts yet.</p>
               </div>
             ) : (
               <div className="attempt-list">

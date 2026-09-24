@@ -1,0 +1,23 @@
+TITLE
+PactMirror v1.1 — Accepted Bilateral Rights on GenLayer
+
+GITHUB
+https://github.com/nikvn89/PactMirror
+
+VERCEL
+Redeploy after publishing this v1.1 source.
+
+V1.1 PROJECT CONTRACT
+0xCd04E73447ab2210B5BbACa38b5F0F6717887275
+
+V1.1 EXPLORER
+https://explorer-studio.genlayer.com/address/0xCd04E73447ab2210B5BbACa38b5F0F6717887275
+
+V1.1 DEPLOY TRANSACTION
+https://explorer-studio.genlayer.com/tx/0xfbba468222ae497caf25ba3ca7ef9a9daf7f70ac1e106277d72d6b9b4236294f
+
+SEPARATE INTELLIGENT CONTRACT SUBMISSION
+0x8F84adB020C953a1415Cc4ac5eF2617Ec97DBb12
+
+HISTORICAL V1.0 ADDRESS — DO NOT USE FOR V1.1
+0x1613A25aE378b3e1e82e4840733BDED53b19f1a8

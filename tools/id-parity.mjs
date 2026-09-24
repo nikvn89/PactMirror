@@ -14,6 +14,7 @@ const PY_SPACE =
 const S = new RegExp('^[' + PY_SPACE + ']+')
 const E = new RegExp('[' + PY_SPACE + ']+$')
 const pyStrip = (v) => v.replace(S, '').replace(E, '')
+const pyCollapse = (v) => v.split(new RegExp('[' + PY_SPACE + ']+')).filter(Boolean).join(' ')
 
 const idOf = (n) =>
   keccak256(toBytes('RECIPROCITY_LOCK:PACT:V1|0xabc|' + cpLen(n) + '|' + n)).slice(2)
@@ -49,3 +50,31 @@ for (const [mode, clean] of [
   }
   console.log(`  => ${cases.length - bad}/${cases.length} reachable, ${bad} unreachable`)
 }
+
+const termIdOf = (pactId, text) =>
+  keccak256(
+    toBytes('RECIPROCITY_LOCK:TERM:V1|' + pactId.toLowerCase() + '|' + cpLen(text) + '|' + text),
+  ).slice(2)
+
+const pactId = 'a'.repeat(64)
+const termCases = [
+  ['plain', 'Controller may withdraw', 'Controller may withdraw'],
+  ['double ASCII space', 'Controller  may withdraw', 'Controller may withdraw'],
+  ['tabs and newline', 'Controller\tmay\nwithdraw', 'Controller may withdraw'],
+  ['leading/trailing', '  Controller may withdraw  ', 'Controller may withdraw'],
+  ['NBSP inside', 'Controller\u00a0may withdraw', 'Controller may withdraw'],
+  ['U+0085 inside', 'Controller\u0085may withdraw', 'Controller may withdraw'],
+  ['emoji plus spacing', 'Party A  \u{1F91D}\tParty B', 'Party A \u{1F91D} Party B'],
+]
+
+console.log('\nTERM ids.ts uses pyCollapse')
+let termBad = 0
+for (const [label, raw, onChain] of termCases) {
+  const sent = pyCollapse(raw)
+  const ok = sent === onChain && termIdOf(pactId, sent) === termIdOf(pactId, onChain)
+  if (!ok) termBad++
+  console.log('  ' + label.padEnd(22) + (ok ? 'match' : 'MISMATCH - term unreachable'))
+}
+console.log(`  => ${termCases.length - termBad}/${termCases.length} reachable, ${termBad} unreachable`)
+
+if (termBad > 0) process.exitCode = 1
