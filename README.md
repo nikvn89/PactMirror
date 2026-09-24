@@ -110,6 +110,8 @@ https://explorer-studio.genlayer.com/address/0xCd04E73447ab2210B5BbACa38b5F0F671
 
 Observed deployment status: GenVM `SUCCESS`, consensus `Accepted`. The accepted `get_config` response reports version `1.1` and the `PENDING`, `DRAFT`, `ACTIVE`, and `EXITED` state labels.
 
+A production two-wallet happy path was also completed against this address. Party A created the pact, Party B accepted it, Party A submitted a mirrored term, validators returned `RIGHT_MIRRORED`, and Party A exercised the shared one-shot right. The accepted state sequence was `PENDING -> DRAFT -> ACTIVE -> EXITED`, with one semantic attempt.
+
 The separate Intelligent Contract submission uses `0x8F84adB020C953a1415Cc4ac5eF2617Ec97DBb12`. The frontend deliberately points only to the distinct Project address above.
 
 The former project address and runtime screenshots are historical v1.0 evidence only:
@@ -124,4 +126,4 @@ The former standalone address is also v1.0 evidence only:
 0x478942A99631cB3357f4480210AF9c5a9bc8c3C2
 ```
 
-See `TEST_PLAN.md` for the remaining runtime workflow and `TESTING.md` for results that have actually been observed.
+See `TEST_PLAN.md` for the complete runtime matrix and `TESTING.md` for observed results and transaction hashes.

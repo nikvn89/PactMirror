@@ -16,6 +16,12 @@ https://explorer-studio.genlayer.com/address/0xCd04E73447ab2210B5BbACa38b5F0F671
 V1.1 DEPLOY TRANSACTION
 https://explorer-studio.genlayer.com/tx/0xfbba468222ae497caf25ba3ca7ef9a9daf7f70ac1e106277d72d6b9b4236294f
 
+v1.1 Project runtime happy path
+Create: https://explorer-studio.genlayer.com/tx/0xe3ba708e26c57dea01f215bb01c20251cede2121252876eda487ca1196880dcf
+Accept: https://explorer-studio.genlayer.com/tx/0xa5624e9701e185e364a0623a69ce153c5881d01ff0c670f8464ace5a043d0b95
+Mirror: https://explorer-studio.genlayer.com/tx/0xb46ad4ccde0a8dee29e22b0148480ea37362f286e942d68608c63da173305d7e
+Exit: https://explorer-studio.genlayer.com/tx/0x156d2e18004a42ed9860d10efc7a732b8704031e1ef55a15832caa12b3889960
+
 SEPARATE INTELLIGENT CONTRACT SUBMISSION
 0x8F84adB020C953a1415Cc4ac5eF2617Ec97DBb12
 

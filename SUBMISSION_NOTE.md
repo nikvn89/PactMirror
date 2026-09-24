@@ -6,4 +6,6 @@ Version 1.1 rejects malformed semantic output without consuming an attempt, norm
 
 ## Runtime status
 
-The exact v1.1 Project source is deployed at `0xCd04E73447ab2210B5BbACa38b5F0F6717887275`. Deployment transaction `0xfbba468222ae497caf25ba3ca7ef9a9daf7f70ac1e106277d72d6b9b4236294f` reached GenVM `SUCCESS`, consensus `Accepted`, and finalized state. The Project address is distinct from the separate Intelligent Contract submission address. The two-wallet consent and M1–M5 runtime flows remain `NOT RUN` until their transaction hashes are recorded in `TESTING.md`.
+The exact v1.1 Project source is deployed at `0xCd04E73447ab2210B5BbACa38b5F0F6717887275`. Deployment transaction `0xfbba468222ae497caf25ba3ca7ef9a9daf7f70ac1e106277d72d6b9b4236294f` reached GenVM `SUCCESS`, consensus `Accepted`, and finalized state. The Project address is distinct from the separate Intelligent Contract submission address.
+
+A production two-wallet happy path passed on that Project deployment: Party A created a `PENDING` pact, Party B accepted it into `DRAFT`, Party A submitted a term that reached `RIGHT_MIRRORED` and `ACTIVE` in one attempt, and Party A exercised the shared one-shot right into `EXITED`. Exact transaction hashes are recorded in `TESTING.md`. The broader negative and M1–M5 matrix remains explicitly marked `NOT RUN` rather than being claimed as runtime evidence.
